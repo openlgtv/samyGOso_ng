@@ -1,0 +1,5 @@
+#cmakedefine TARGET_ARM
+#cmakedefine TARGET_I386
+#cmakedefine TARGET_AMD64
+#cmakedefine CPU_32
+#cmakedefine CPU_64

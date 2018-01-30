@@ -1,0 +1,40 @@
+.section .sc
+
+_SHELL_CODE:
+	# Load the context in R0
+	ADR R0, L_sc_ctx_t
+	# Call the C part of the loader
+	BL _SHELL_CODE_MAIN
+	# Restore registers
+	LDR SP, L_SP
+	LDR R0, L_R0
+	LDR R1, L_R1
+	LDR R2, L_R2
+	LDR R3, L_R3
+	LDR R4, L_R4
+	LDR LR, L_LR
+	LDR PC, L_PC
+
+
+_SHELL_CODE_REG_SAVE:
+L_sc_reg_save_t:
+	L_R0: .word 0
+	L_R1: .word 0
+	L_R2: .word 0
+	L_R3: .word 0
+	L_R4: .word 0
+	L_LR: .word 0
+	L_PC: .word 0
+	L_SP: .word 0
+
+_SHELL_CODE_CTX:
+	L_dlopen: .word 0
+	L_dlsym: .word 0
+	L_dlclose: .word 0
+	.lib: .word 0
+	.fn_init: .word 0
+	L_lib_init: .fill 16, 1, 0
+	L_lib_deinit: .fill 16, 1, 0
+	L_soname: .fill 256, 1, 0
+
+_END_OF_SHELL_CODE:

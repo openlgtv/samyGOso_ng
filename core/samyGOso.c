@@ -1028,7 +1028,7 @@ static int inject_lib(
 	}
     close(fd);
 	
-	struct user_regs_struct regs;
+	struct pt_regs2 regs;
     ptrace(PTRACE_GETREGS, pid, 0, &regs);
 
     int nalloc = ALIGN(strlen(lib_name) + 1);

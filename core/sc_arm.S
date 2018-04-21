@@ -1,7 +1,6 @@
-.global _START_OF_SHELL_CODE
+.global _SHELL_CODE_MAIN
 .global _SHELL_CODE_REG_SAVE
 .global _SHELL_CODE_CTX
-.global _END_OF_SHELL_CODE
 .section .sc
 
 _SHELL_CODE_MAIN:

@@ -1096,7 +1096,7 @@ static int inject_lib(
 
 #if defined(TARGET_ARM) || defined(TARGET_THUMB)		
 	// write code to stack
-	uintptr_t codeaddr = regs.ARM_sp - sc_size;
+	uintptr_t codeaddr = regs.ARM_sp - sc_size + SC_OFFSET(_SHELL_CODE_MAIN);
 #elif defined(TARGET_AMD64)
 	uintptr_t codeaddr = regs.rsp - sc_size;
 #endif

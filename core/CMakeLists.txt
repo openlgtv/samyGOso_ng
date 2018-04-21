@@ -1,5 +1,7 @@
 set(samyGOso_sources samyGOso.c sc.c nxjson/nxjson.c)
-if(TARGET_AMD64)
+if(TARGET_ARM)
+	list(APPEND samyGOso_sources sc_arm.S)
+elseif(TARGET_AMD64) # WARNING: not completed yet
 	list(APPEND samyGOso_sources sc_amd64.S)
 endif()
 add_executable(samyGOso ${samyGOso_sources})

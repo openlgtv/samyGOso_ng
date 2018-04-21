@@ -1,10 +1,14 @@
 .section .sc
+.global _START_OF_SHELL_CODE
+.global _SHELL_CODE_REG_SAVE
+.global _SHELL_CODE_CTX
+.global _END_OF_SHELL_CODE
 
-_SHELL_CODE:
+_START_OF_SHELL_CODE:
 	# Load the context in R0
-	ADR R0, L_sc_ctx_t
+	ADR R0, _SHELL_CODE_CTX
 	# Call the C part of the loader
-	BL _SHELL_CODE_MAIN
+	BL _SC_FINALIZE
 	# Restore registers
 	LDR SP, L_SP
 	LDR R0, L_R0

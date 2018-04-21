@@ -75,7 +75,7 @@ typedef void (*sc_lib_deinit)(void *h);
 typedef void *sc_t;
 
 // From C
-extern void _SHELL_CODE_MAIN(sc_ctx_t *ctx);
+extern void _SC_FINALIZE(sc_ctx_t *ctx);
 // From Assembly
 extern uintptr_t _START_OF_SHELL_CODE;
 extern uintptr_t _END_OF_SHELL_CODE;
@@ -83,7 +83,6 @@ extern uintptr_t _END_OF_SHELL_CODE;
 extern uintptr_t _SC_STACK;
 #endif
 
-extern void (*_SC_MAIN)();
 extern sc_ctx_t *_SHELL_CODE_CTX;
 extern uintptr_t _SHELL_CODE_REG_SAVE; 
 

@@ -1,10 +1,10 @@
-.section .sc
 .global _START_OF_SHELL_CODE
 .global _SHELL_CODE_REG_SAVE
 .global _SHELL_CODE_CTX
 .global _END_OF_SHELL_CODE
+.section .sc
 
-_START_OF_SHELL_CODE:
+_SHELL_CODE_MAIN:
 	# Load the context in R0
 	ADR R0, _SHELL_CODE_CTX
 	# Call the C part of the loader
@@ -21,7 +21,6 @@ _START_OF_SHELL_CODE:
 
 
 _SHELL_CODE_REG_SAVE:
-L_sc_reg_save_t:
 	L_R0: .word 0
 	L_R1: .word 0
 	L_R2: .word 0
@@ -40,5 +39,3 @@ _SHELL_CODE_CTX:
 	L_lib_init: .fill 16, 1, 0
 	L_lib_deinit: .fill 16, 1, 0
 	L_soname: .fill 256, 1, 0
-
-_END_OF_SHELL_CODE:

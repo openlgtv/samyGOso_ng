@@ -19,8 +19,7 @@
 
 //////////////////////////////////////////////////////////////////////////////
 
-typedef struct 
-{
+typedef struct {
     void* (*dlopen)(const char*,int);
     void* (*dlsym)(void*, const char*);
     int (*dlclose)(void*);
@@ -31,6 +30,11 @@ typedef struct
     char lib_deinit[16];
     char lib_name[];
 } sc_ctx_t;
+
+typedef struct {
+    size_t len;
+    void *data;
+} sc_t;
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -72,8 +76,6 @@ typedef void (*sc_lib_deinit)(void *h);
 
 //////////////////////////////////////////////////////////////////////////////
 
-typedef void *sc_t;
-
 // From C
 extern void _SC_FINALIZE(sc_ctx_t *ctx);
 // From Assembly
@@ -83,25 +85,14 @@ extern uintptr_t _END_OF_SHELL_CODE;
 extern uintptr_t _SC_STACK;
 #endif
 
-extern sc_ctx_t *_SHELL_CODE_CTX;
-extern uintptr_t _SHELL_CODE_REG_SAVE; 
+extern sc_ctx_t _SHELL_CODE_CTX;
+extern unsigned int _SHELL_CODE_REG_SAVE[]; 
 
-sc_t sc_alloc(
-        uint32_t extra);
-
-void sc_free(
-        sc_t sc);
-
-const uint32_t *sc_get(
-        const sc_t sc);
-
-uint32_t sc_get_size(
-        const sc_t sc);
-
-sc_ctx_t *sc_get_ctx(
-        const sc_t sc);
-
-sc_reg_save_t *sc_get_reg_save(
-        const sc_t sc);
+sc_t *sc_alloc(uint32_t extra);
+void sc_free(sc_t *sc);
+const uint32_t *sc_get(const sc_t *sc);
+uint32_t sc_get_size(const sc_t *sc);
+sc_ctx_t *sc_get_ctx(const sc_t *sc);
+sc_reg_save_t *sc_get_reg_save(const sc_t *sc);
 
 //////////////////////////////////////////////////////////////////////////////

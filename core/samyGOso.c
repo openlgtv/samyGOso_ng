@@ -526,7 +526,7 @@ find_name(pid_t pid, char *name, uintptr_t *addr)
 	}
 	if ( (*addr & 0xFF000000) != (libcaddr & 0xff000000) ) {
 		//if (addlibcaddr == 1)
-		printf("adding libc addr to found symaddress %x + %x %x\n", *addr, libcaddr, (*addr + libcaddr) );
+		printf("adding libc addr to found symaddress %08X + %08X => %08X\n", *addr, libcaddr, (*addr + libcaddr) );
 		*addr = (*addr + libcaddr);
 	}
 	return 0;
@@ -885,8 +885,9 @@ int main(int argc, const char *argv[]){
 }
 
 static int init_extra(
-        int argc, const char *argv[], char **_extra) 
-{
+	int argc, const char *argv[],
+	char **_extra
+){
     if(optind <= 0)
         return 0;
 
@@ -927,6 +928,7 @@ static int init_extra(
     *_extra = extra;
     return extra_len;
 }
+
 typedef struct
 {
 	uintptr_t dlopenaddr, dlcloseaddr, dlsymaddr, mprotectaddr;
@@ -946,7 +948,7 @@ static int inject_prepare(
 		return -1;
 	}
 	if (debug)
-		printf("mprotect: 0x%x\n", mprotectaddr);
+		printf("mprotect: 0x%08X\n", mprotectaddr);
 
 	void *ldl = dlopen("libdl.so.2", RTLD_LAZY);
     if(!ldl)
@@ -987,9 +989,9 @@ static int inject_prepare(
 	dlsymaddr = their_linker + (dlsymaddr - this_linker);
 	if(debug)
 	{
-    	printf("dlopen: 0x%x\n", dlopenaddr);
-    	printf("dlclose: 0x%x\n", dlcloseaddr);
-    	printf("dlsymaddr: 0x%x\n", dlsymaddr);
+    	printf("dlopen   : 0x%08X\n", dlopenaddr);
+    	printf("dlclose  : 0x%08X\n", dlcloseaddr);
+    	printf("dlsymaddr: 0x%08X\n", dlsymaddr);
 	}
 
     inject_info->mprotectaddr = mprotectaddr;
@@ -1000,6 +1002,15 @@ static int inject_prepare(
 }
 
 #define ALIGN(p) (((uintptr_t)p + (sizeof(uintptr_t) - 1)) & ~(sizeof(uintptr_t)-1))
+
+static void dump_regs(struct pt_regs2 regs){
+	printf("R0: 0x%08X (arg0)\n", regs.ARM_r0);
+	printf("R1: 0x%08X (arg1)\n", regs.ARM_r1);
+	printf("R2: 0x%08X (arg2)\n", regs.ARM_r2);
+	printf("LR: 0x%08X (return address)\n", regs.ARM_lr);
+	printf("PC: 0x%08X (program counter)\n", regs.ARM_pc);
+	printf("SP: 0x%08X (stack pointer)\n", regs.ARM_sp);
+}
 
 static int inject_lib(
         pid_t pid, const char *lib_name, int resident)
@@ -1094,13 +1105,11 @@ static int inject_lib(
 	#endif
 
 	if (debug) {
-		printf("pc=%x lr=%x sp=%x fp=%x\n", regs.ARM_pc, regs.ARM_lr, regs.ARM_sp, regs.ARM_fp);
-		printf("r0=%x r1=%x\n", regs.ARM_r0, regs.ARM_r1);
-		printf("r2=%x r3=%x\n", regs.ARM_r2, regs.ARM_r3);
+		dump_regs(regs);
 	}
 
 	if (debug)
-		printf("stack: 0x%x-0x%x length = %d\n", stack_start, stack_end, stack_end-stack_start);
+		printf("stack: 0x%08X-0x%08X, length = %d\n", stack_start, stack_end, stack_end-stack_start);
 
 #if defined(TARGET_ARM) || defined(TARGET_THUMB)		
 	// write code to stack
@@ -1110,14 +1119,16 @@ static int inject_lib(
 #endif
 
 	if(debug){
-		printf("writing 0x%x bytes at 0x%x\n", sc_size, codeaddr);
+		printf("writing 0x%08X bytes at 0x%x\n", sc_size, codeaddr);
 	}
+
+	uint8_t *shell_code = sc_get(sc);
 
 	//-- STACK --
 	//[ARM_sp - sc_size]
 	//.....
 	//[ARM_sp]
-	if(write_mem(pid, (unsigned long*)sc_get(sc), sc_size/sizeof(long), codeaddr) < 0) 
+	if(write_mem(pid, (unsigned long*)shell_code, sc_size/sizeof(long), codeaddr) < 0) 
     {
 		printf("cannot write code, error!\n");
     	ptrace(PTRACE_DETACH, pid, 0, 0);
@@ -1131,7 +1142,7 @@ static int inject_lib(
 	codeaddr += SC_OFFSET(_SHELL_CODE_MAIN);
 
 #if defined(TARGET_ARM) || defined(TARGET_THUMB)	
-	// reserve stack space (used for the code we just wrote)
+	// reserve stack space (used for the code we just wrote) - equivalent to alloca
 	regs.ARM_sp = regs.ARM_sp - sc_size;
 
 	// call mprotect() to make stack executable
@@ -1142,6 +1153,11 @@ static int inject_lib(
 	regs.ARM_r2 = PROT_READ|PROT_WRITE|PROT_EXEC; // protections
 	regs.ARM_lr = codeaddr; // points to loading and fixing code
 	regs.ARM_pc = inject_info.mprotectaddr; // execute mprotect()
+
+	if (debug) {
+		dump_regs(regs);
+	}
+
 #elif defined(TARGET_AMD64)
 	*(uintptr_t *)(&_SC_STACK + 4096 - 8) = &_SC_MAIN;
 	regs.rsp = &_SC_STACK + 4096 - 8;

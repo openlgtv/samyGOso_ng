@@ -32,7 +32,7 @@ typedef struct {
 } sc_ctx_t;
 
 typedef struct {
-    size_t len;
+    uint32_t len;
     uint8_t *data;
 } sc_t;
 
@@ -104,9 +104,9 @@ extern unsigned int _SHELL_CODE_REG_SAVE[];
 
 sc_t *sc_alloc(uint32_t extra);
 void sc_free(sc_t *sc);
-const uint8_t *sc_get(const sc_t *sc);
-uint32_t sc_get_size(const sc_t *sc);
-sc_ctx_t *sc_get_ctx(const sc_t *sc);
-sc_reg_save_t *sc_get_reg_save(const sc_t *sc);
+uint8_t *sc_get(sc_t *sc);
+uint32_t sc_get_size(sc_t *sc);
+sc_ctx_t *sc_get_ctx(sc_t *sc);
+sc_reg_save_t *sc_get_reg_save(sc_t *sc);
 
 //////////////////////////////////////////////////////////////////////////////

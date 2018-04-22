@@ -22,7 +22,7 @@
 //////////////////////////////////////////////////////////////////////////////
 
 void SC_DECL _SC_FINALIZE(sc_ctx_t *ctx)
-{  
+{
     ctx->lib = ctx->dlopen(ctx->lib_name, RTLD_LAZY);
     if(ctx->lib)
     {
@@ -66,19 +66,19 @@ void sc_free(sc_t *sc){
     free(sc);
 }
 
-const uint8_t *sc_get(const sc_t *sc){
+inline uint8_t *sc_get(sc_t *sc){
     return sc->data;
 }
 
-uint32_t sc_get_size(const sc_t *sc){
+inline uint32_t sc_get_size(sc_t *sc){
     return sc->len;
 }
 
-sc_ctx_t *sc_get_ctx(const sc_t *sc){
+inline sc_ctx_t *sc_get_ctx(sc_t *sc){
     return (sc_ctx_t *)(sc->data + SC_OFFSET(_SHELL_CODE_CTX));
 }
 
-sc_reg_save_t *sc_get_reg_save(const sc_t *sc){
+inline sc_reg_save_t *sc_get_reg_save(sc_t *sc){
     return (sc_reg_save_t *)(sc->data + SC_OFFSET(_SHELL_CODE_REG_SAVE));
 }
 

@@ -1061,6 +1061,14 @@ static int inject_lib(
 	reg_save->R2 = regs.ARM_r2;
 	reg_save->R3 = regs.ARM_r3;
 	reg_save->R4 = regs.ARM_r4;
+	reg_save->R5 = regs.ARM_r5;
+	reg_save->R6 = regs.ARM_r6;
+	reg_save->R7 = regs.ARM_r7;
+	reg_save->R8 = regs.ARM_r8;
+	reg_save->R9 = regs.ARM_r9;
+	reg_save->R10 = regs.ARM_r10;
+	reg_save->FP = regs.ARM_fp;
+	reg_save->IP = regs.ARM_ip; //Intra Procedure call scratch Register
 	reg_save->LR = regs.ARM_lr;
 	reg_save->PC = regs.ARM_pc;
 	reg_save->SP = regs.ARM_sp;

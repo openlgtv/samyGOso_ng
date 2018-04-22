@@ -1111,6 +1111,10 @@ static int inject_lib(
 		printf("writing 0x%x bytes at 0x%x\n", sc_size, codeaddr);
 	}
 
+	//-- STACK --
+	//[ARM_sp - sc_size]
+	//.....
+	//[ARM_sp]
 	if(write_mem(pid, (unsigned long*)sc_get(sc), sc_size/sizeof(long), codeaddr) < 0) 
     {
 		printf("cannot write code, error!\n");
@@ -1121,10 +1125,11 @@ static int inject_lib(
 	if (debug)
 		printf("executing injection code at 0x%x\n", codeaddr);
 
+	// offset (if any) for the shellcode entry point
 	codeaddr += SC_OFFSET(_SHELL_CODE_MAIN);
 
 #if defined(TARGET_ARM) || defined(TARGET_THUMB)	
-	// calc stack pointer
+	// reserve stack space (used for the code we just wrote)
 	regs.ARM_sp = regs.ARM_sp - sc_size;
 
 	// call mprotect() to make stack executable

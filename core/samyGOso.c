@@ -458,9 +458,10 @@ find_linker_mem(char *name, int len, unsigned long *start,
 }
 
 static int
-lookup2(struct symlist *sl, unsigned char type,
-	char *name, unsigned long *val)
-{
+lookup2(
+	struct symlist *sl, unsigned char type,
+	char *name, uintptr_t *val
+){
 	Elf_Sym *p;
 	int len;
 	int i;
@@ -480,9 +481,10 @@ lookup2(struct symlist *sl, unsigned char type,
 }
 
 static int
-lookup_sym(symtab_t s, unsigned char type,
-	   char *name, unsigned long *val)
-{
+lookup_sym(
+	symtab_t s, unsigned char type,
+	char *name, uintptr_t *val
+){
 	if (s->dyn && !lookup2(s->dyn, type, name, val))
 		return 0;
 	if (s->st && !lookup2(s->st, type, name, val))
@@ -491,13 +493,13 @@ lookup_sym(symtab_t s, unsigned char type,
 }
 
 static int
-lookup_func_sym(symtab_t s, char *name, unsigned long *val)
+lookup_func_sym(symtab_t s, char *name, uintptr_t *val)
 {
 	return lookup_sym(s, STT_FUNC, name, val);
 }
 
 static int
-find_name(pid_t pid, char *name, unsigned long *addr)
+find_name(pid_t pid, char *name, uintptr_t *addr)
 {
 	struct mm mm[16000];
 	unsigned long libcaddr;
@@ -530,7 +532,7 @@ find_name(pid_t pid, char *name, unsigned long *addr)
 	return 0;
 }
 
-static int find_linker(pid_t pid, unsigned long *addr)
+static int find_linker(pid_t pid, uintptr_t *addr)
 {
 	struct mm mm[16000];
 	unsigned long libcaddr;
@@ -608,7 +610,7 @@ typedef struct hijack_cfg_entries
     uint8_t keep;
     char init[16];
     char deinit[16];
-    STAILQ_ENTRY(hijack_cfg_entry) entries;
+    STAILQ_ENTRY(hijack_cfg_entries) entries;
 } hijack_cfg_entry_t;
 
 static STAILQ_HEAD(slisthead, hijack_cfg_entries) hijack_cfg = STAILQ_HEAD_INITIALIZER(hijack_cfg);
@@ -853,7 +855,7 @@ int main(int argc, const char *argv[]){
     else if(config)
     {
         load_config(config);
-        hijack_cfg_entry_t *cfg_entry = 0;
+        hijack_cfg_entry_t *cfg_entry = NULL;
         STAILQ_FOREACH(cfg_entry, &hijack_cfg, entries)
         {
         	//char lib_path_buf[PATH_MAX];
@@ -954,9 +956,9 @@ static int inject_prepare(
 	}
 
 
-    dlopenaddr  = dlsym(ldl, "dlopen");
-    dlcloseaddr = dlsym(ldl, "dlclose");
-	dlsymaddr   = dlsym(ldl, "dlsym");
+    dlopenaddr  = (uintptr_t)dlsym(ldl, "dlopen");
+    dlcloseaddr = (uintptr_t)dlsym(ldl, "dlclose");
+	dlsymaddr   = (uintptr_t)dlsym(ldl, "dlsym");
 	dlclose(ldl);
 
     if(!dlopenaddr || !dlcloseaddr || !dlsymaddr)

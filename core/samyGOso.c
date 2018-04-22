@@ -1083,23 +1083,26 @@ static int inject_lib(
 	reg_save->R15 = regs.r15;
 	#endif
 
-/*
 	if (debug) {
 		printf("pc=%x lr=%x sp=%x fp=%x\n", regs.ARM_pc, regs.ARM_lr, regs.ARM_sp, regs.ARM_fp);
 		printf("r0=%x r1=%x\n", regs.ARM_r0, regs.ARM_r1);
 		printf("r2=%x r3=%x\n", regs.ARM_r2, regs.ARM_r3);
 	}
-*/
 
 	if (debug)
 		printf("stack: 0x%x-0x%x length = %d\n", stack_start, stack_end, stack_end-stack_start);
 
 #if defined(TARGET_ARM) || defined(TARGET_THUMB)		
 	// write code to stack
-	uintptr_t codeaddr = regs.ARM_sp - sc_size + SC_OFFSET(_SHELL_CODE_MAIN);
+	uintptr_t codeaddr = regs.ARM_sp - sc_size;
 #elif defined(TARGET_AMD64)
 	uintptr_t codeaddr = regs.rsp - sc_size;
 #endif
+
+	if(debug){
+		printf("writing 0x%x bytes at 0x%x\n", sc_size, codeaddr);
+	}
+
 	if(write_mem(pid, (unsigned long*)sc_get(sc), sc_size/sizeof(long), codeaddr) < 0) 
     {
 		printf("cannot write code, error!\n");
@@ -1109,6 +1112,8 @@ static int inject_lib(
 
 	if (debug)
 		printf("executing injection code at 0x%x\n", codeaddr);
+
+	codeaddr += SC_OFFSET(_SHELL_CODE_MAIN);
 
 #if defined(TARGET_ARM) || defined(TARGET_THUMB)	
 	// calc stack pointer

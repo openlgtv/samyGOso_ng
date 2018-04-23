@@ -45,14 +45,12 @@
 #include <unistd.h>
 #include <errno.h>       
 #include <sys/mman.h>
-#include <sys/user.h>
 #include "sc.h"
 #include "sys/queue.h"
 #include "nxjson/nxjson.h"
-#include "elf_types.h"
 #include <dirent.h>
 
-#include "config.h"
+
 
 #define EXTRA_COOKIE    0x82374021
 #define MAX_ARGCV_LEN   1024
@@ -74,7 +72,7 @@ struct mm {
 
 typedef struct symtab *symtab_t;
 struct symlist {
-	Elf_Sym *sym;       /* symbols */
+	Elf32_Sym *sym;       /* symbols */
 	char *str;            /* symbol strings */
 	unsigned num;         /* number of symbols */
 };
@@ -83,13 +81,11 @@ struct symtab {
 	struct symlist *dyn;   /* dynamic symbols */
 };
 
-/**
- * malloc wrapper
- */
-static void *
+static void * 
 xmalloc(size_t size)
 {
-	void *p = malloc(size);
+	void *p;
+	p = malloc(size);
 	if (!p) {
 		printf("Out of memory\n");
 		exit(1);
@@ -97,11 +93,8 @@ xmalloc(size_t size)
 	return p;
 }
 
-/**
- * Extracts symbols from a section
- */ 
 static struct symlist *
-get_syms(int fd, Elf_Shdr *symh, Elf_Shdr *strh)
+get_syms(int fd, Elf32_Shdr *symh, Elf32_Shdr *strh)
 {
 	struct symlist *sl, *ret;
 	int rv;
@@ -112,33 +105,33 @@ get_syms(int fd, Elf_Shdr *symh, Elf_Shdr *strh)
 	sl->sym = NULL;
 
 	/* sanity */
-	if (symh->sh_size % sizeof(Elf_Sym)) { 
+	if (symh->sh_size % sizeof(Elf32_Sym)) { 
 		printf("elf_error\n");
 		goto out;
 	}
 
 	/* symbol table */
-	sl->num = symh->sh_size / sizeof(Elf_Sym);
-	sl->sym = (Elf_Sym *) xmalloc(symh->sh_size);
+	sl->num = symh->sh_size / sizeof(Elf32_Sym);
+	sl->sym = (Elf32_Sym *) xmalloc(symh->sh_size);
 	rv = pread(fd, sl->sym, symh->sh_size, symh->sh_offset);
-	if (rv <= 0) {
-		perror("read");
+	if (0 > rv) {
+		//perror("read");
 		goto out;
 	}
-	if (symh->sh_size != rv) {
-		printf("elf error in symbol table\n");
+	if (rv != symh->sh_size) {
+		printf("elf error\n");
 		goto out;
 	}
 
 	/* string table */
 	sl->str = (char *) xmalloc(strh->sh_size);
 	rv = pread(fd, sl->str, strh->sh_size, strh->sh_offset);
-	if (rv <= 0) {
+	if (0 > rv) {
 		//perror("read");
 		goto out;
 	}
-	if (strh->sh_size != rv) {
-		printf("elf error in string table\n");
+	if (rv != strh->sh_size) {
+		printf("elf error");
 		goto out;
 	}
 
@@ -147,51 +140,48 @@ out:
 	return ret;
 }
 
-/**
- * Processes the opened file and retrives its symbols
- */
 static int
 do_load(int fd, symtab_t symtab)
 {
 	int rv;
 	size_t size;
-	Elf_Ehdr ehdr;
-	Elf_Shdr *shdr = NULL, *p;
-	Elf_Shdr *dynsymh, *dynstrh;
-	Elf_Shdr *symh, *strh;
+	Elf32_Ehdr ehdr;
+	Elf32_Shdr *shdr = NULL, *p;
+	Elf32_Shdr *dynsymh, *dynstrh;
+	Elf32_Shdr *symh, *strh;
 	char *shstrtab = NULL;
 	int i;
 	int ret = -1;
 	
 	/* elf header */
 	rv = read(fd, &ehdr, sizeof(ehdr));
-	if (rv <= 0) {
+	if (0 > rv) {
 		//perror("read");
 		goto out;
 	}
 	if (rv != sizeof(ehdr)) {
-		printf("elf error in header\n");
+		printf("elf error\n");
 		goto out;
 	}
 	if (strncmp(ELFMAG, ehdr.e_ident, SELFMAG)) { /* sanity */
 		printf("not an elf\n");
 		goto out;
 	}
-	if (sizeof(Elf_Shdr) != ehdr.e_shentsize) { /* sanity */
-		printf("elf error in elf size\n");
+	if (sizeof(Elf32_Shdr) != ehdr.e_shentsize) { /* sanity */
+		printf("elf error\n");
 		goto out;
 	}
 
 	/* section header table */
 	size = ehdr.e_shentsize * ehdr.e_shnum;
-	shdr = (Elf_Shdr *) xmalloc(size);
+	shdr = (Elf32_Shdr *) xmalloc(size);
 	rv = pread(fd, shdr, size, ehdr.e_shoff);
-	if (rv <= 0) {
+	if (0 > rv) {
 		//perror("read");
 		goto out;
 	}
 	if (rv != size) {
-		printf("elf error in section header\n");
+		printf("elf error");
 		goto out;
 	}
 	
@@ -199,12 +189,12 @@ do_load(int fd, symtab_t symtab)
 	size = shdr[ehdr.e_shstrndx].sh_size;
 	shstrtab = (char *) xmalloc(size);
 	rv = pread(fd, shstrtab, size, shdr[ehdr.e_shstrndx].sh_offset);
-	if (rv <= 0) {
+	if (0 > rv) {
 		//perror("read");
 		goto out;
 	}
 	if (rv != size) {
-		printf("elf error in string table header\n");
+		printf("elf error\n");
 		goto out;
 	}
 
@@ -265,9 +255,6 @@ out:
 	return ret;
 }
 
-/**
- * Retrives the symbols from a given ELF file
- */
 static symtab_t
 load_symtab(char *filename)
 {
@@ -278,11 +265,11 @@ load_symtab(char *filename)
 	memset(symtab, 0, sizeof(*symtab));
 
 	fd = open(filename, O_RDONLY);
-	if (fd <= 0) {
+	if (0 > fd) {
 		//perror("open");
 		return NULL;
 	}
-	if (do_load(fd, symtab) < 0) {
+	if (0 > do_load(fd, symtab)) {
 		printf("Error ELF parsing %s\n", filename);
 		free(symtab);
 		symtab = NULL;
@@ -292,9 +279,6 @@ load_symtab(char *filename)
 }
 
 
-/**
- * Loads the /proc/<pid>/maps for a given pid and prepares a list of loaded libraries
- */ 
 static int
 load_memmap(pid_t pid, struct mm *mm, int *nmmp)
 {
@@ -320,11 +304,11 @@ load_memmap(pid_t pid, struct mm *mm, int *nmmp)
 	p = raw;
 	while (1) {
 		rv = read(fd, p, sizeof(raw)-(p-raw));
-		if (rv < 0) {
-			perror("read");
+		if (0 > rv) {
+			//perror("read");
 			return -1;
 		}
-		if (rv == 0)
+		if (0 == rv)
 			break;
 		p += rv;
 		if (p-raw >= sizeof(raw)) {
@@ -336,10 +320,9 @@ load_memmap(pid_t pid, struct mm *mm, int *nmmp)
 
 	p = strtok(raw, "\n");
 	m = mm;
-
 	while (p) {
 		/* parse current map line */
-		rv = sscanf(p, "%x-%x %*s %*s %*s %*s %s\n",
+		rv = sscanf(p, "%08lx-%08lx %*s %*s %*s %*s %s\n",
 			    &start, &end, name);
 
 		p = strtok(NULL, "\n");
@@ -382,13 +365,11 @@ load_memmap(pid_t pid, struct mm *mm, int *nmmp)
 	return 0;
 }
 
-/**
- * Find libc in MM, storing no more than LEN-1 chars of
- * its name in NAME and set START to its starting
- * address.  If libc cannot be found return -1 and
- * leave NAME and START untouched.  Otherwise return 0
- * and null-terminated NAME.
- */
+/* Find libc in MM, storing no more than LEN-1 chars of
+   its name in NAME and set START to its starting
+   address.  If libc cannot be found return -1 and
+   leave NAME and START untouched.  Otherwise return 0
+   and null-terminated NAME. */
 static int
 find_libc(char *name, int len, unsigned long *start,
 	  struct mm *mm, int nmm)
@@ -438,10 +419,11 @@ find_linker_mem(char *name, int len, unsigned long *start,
 		if (!p)
 			continue;
 		p++;
+		
 		if (strstr("libdl", p) != NULL)
 			continue;
-		
 		p += 4;
+
 		/* here comes our crude test -> 'libc.so' or 'libc-[0-9]' */
 		if (!strncmp(".so", p, 3) || (p[0] == '-' && isdigit(p[1])))
 			break;
@@ -458,11 +440,10 @@ find_linker_mem(char *name, int len, unsigned long *start,
 }
 
 static int
-lookup2(
-	struct symlist *sl, unsigned char type,
-	char *name, uintptr_t *val
-){
-	Elf_Sym *p;
+lookup2(struct symlist *sl, unsigned char type,
+	char *name, unsigned long *val)
+{
+	Elf32_Sym *p;
 	int len;
 	int i;
 
@@ -470,7 +451,7 @@ lookup2(
 	for (i = 0, p = sl->sym; i < sl->num; i++, p++) {
 		//printf("name: %s %x\n", sl->str+p->st_name, p->st_value);
 		if (!strncmp(sl->str+p->st_name, name, len)
-		    && ELF_ST_TYPE(p->st_info) == type) {
+		    && ELF32_ST_TYPE(p->st_info) == type) {
 			//if (p->st_value != 0) {
 			*val = p->st_value;
 			return 0;
@@ -481,10 +462,9 @@ lookup2(
 }
 
 static int
-lookup_sym(
-	symtab_t s, unsigned char type,
-	char *name, uintptr_t *val
-){
+lookup_sym(symtab_t s, unsigned char type,
+	   char *name, unsigned long *val)
+{
 	if (s->dyn && !lookup2(s->dyn, type, name, val))
 		return 0;
 	if (s->st && !lookup2(s->st, type, name, val))
@@ -493,13 +473,13 @@ lookup_sym(
 }
 
 static int
-lookup_func_sym(symtab_t s, char *name, uintptr_t *val)
+lookup_func_sym(symtab_t s, char *name, unsigned long *val)
 {
 	return lookup_sym(s, STT_FUNC, name, val);
 }
 
 static int
-find_name(pid_t pid, char *name, uintptr_t *addr)
+find_name(pid_t pid, char *name, unsigned long *addr)
 {
 	struct mm mm[16000];
 	unsigned long libcaddr;
@@ -507,11 +487,11 @@ find_name(pid_t pid, char *name, uintptr_t *addr)
 	char libc[256];
 	symtab_t s;
 
-	if (load_memmap(pid, mm, &nmm) < 0) {
+	if (0 > load_memmap(pid, mm, &nmm)) {
 		printf("cannot read memory map\n");
 		return -1;
 	}
-	if (find_libc(libc, sizeof(libc), &libcaddr, mm, nmm) < 0) {
+	if (0 > find_libc(libc, sizeof(libc), &libcaddr, mm, nmm)) {
 		printf("cannot find libc\n");
 		return -1;
 	}
@@ -520,19 +500,19 @@ find_name(pid_t pid, char *name, uintptr_t *addr)
 		printf("cannot read symbol table\n");
 		return -1;
 	}
-	if (lookup_func_sym(s, name, addr) < 0) {
+	if (0 > lookup_func_sym(s, name, addr)) {
 		printf("cannot find %s\n", name);
 		return -1;
 	}
 	if ( (*addr & 0xFF000000) != (libcaddr & 0xff000000) ) {
 		//if (addlibcaddr == 1)
-		printf("adding libc addr to found symaddress %08X + %08X => %08X\n", *addr, libcaddr, (*addr + libcaddr) );
+		printf("adding libc addr to found symaddress %x + %x %x\n", *addr, libcaddr, (*addr + libcaddr) );
 		*addr = (*addr + libcaddr);
 	}
 	return 0;
 }
 
-static int find_linker(pid_t pid, uintptr_t *addr)
+static int find_linker(pid_t pid, unsigned long *addr)
 {
 	struct mm mm[16000];
 	unsigned long libcaddr;
@@ -540,11 +520,11 @@ static int find_linker(pid_t pid, uintptr_t *addr)
 	char libc[256];
 	symtab_t s;
 
-	if (load_memmap(pid, mm, &nmm) < 0) {
+	if (0 > load_memmap(pid, mm, &nmm)) {
 		printf("cannot read memory map\n");
 		return -1;
 	}
-	if (find_linker_mem(libc, sizeof(libc), &libcaddr, mm, nmm) < 0) {
+	if (0 > find_linker_mem(libc, sizeof(libc), &libcaddr, mm, nmm)) {
 		printf("cannot find linker\n");
 		return -1;
 	}
@@ -610,7 +590,7 @@ typedef struct hijack_cfg_entries
     uint8_t keep;
     char init[16];
     char deinit[16];
-    STAILQ_ENTRY(hijack_cfg_entries) entries;
+    STAILQ_ENTRY(hijack_cfg_entry) entries;
 } hijack_cfg_entry_t;
 
 static STAILQ_HEAD(slisthead, hijack_cfg_entries) hijack_cfg = STAILQ_HEAD_INITIALIZER(hijack_cfg);
@@ -650,7 +630,9 @@ static int load_config(
         fread(cfgdata + sizeof(nxjs_fix_s) - 1, 1, cfgsize, f);
         cfgdata[allocsize - 1] = '}';
         cfgdata[allocsize] = 0;
+        //printf("aaa %s \n", cfgdata);
         cfgjson = nx_json_parse_utf8(cfgdata);
+        //printf("aaa\n");
     }
 
     free(cfgdata);
@@ -715,7 +697,6 @@ static int load_config(
 
     nx_json_free(_cfgjson);
 }
-
 pid_t proc_find(const char* name) 
 {
     DIR* dir;
@@ -761,15 +742,22 @@ pid_t proc_find(const char* name)
     return -1;
 }
 
-static int inject_lib(pid_t pid, const char *lib_name, int resident);
-static int init_extra(int argc, const char *argv[], char **_extra);
+static int inject_lib(
+        pid_t pid, const char *lib_name, int resident);
 
-static void usage_and_exit(const char *argv[]){
+static int init_extra(
+        int argc, const char *argv[], char **_extra);
+
+
+static void usage_and_exit(
+        const char *argv[])
+{
 	fprintf(stderr, "usage: %s [-p PID | -n procname | -A | -T | -D ] [-B ] {-c CONFIG | -l /full/path/to/inject.so [-r (=resident)]} [-d (=debug on)] [-a (=add libc addressoffset )] [arg0,...,argN]\n", argv[0]);
 	exit(0);
 }
 
-int main(int argc, const char *argv[]){
+int main(int argc, const char *argv[])
+{
 	pid_t pid = 0, backpid = 0;
 	int opt = 0;
     int resident = 0;
@@ -780,7 +768,7 @@ int main(int argc, const char *argv[]){
     _argc = argc;
     _argv = argv;
 
-    printf("samyGOso v1.2.5 (c) bugficks 2013-2014, sectroyer 2014-2015, smx 2017\n");
+    printf("samyGOso v1.2.5 (c) bugficks 2013-2014, sectroyer 2014-2015\n");
  	
     while ((opt = getopt(argc, argv, "p:c:l:drn:TADB")) != -1) {
 		switch (opt) {
@@ -855,7 +843,7 @@ int main(int argc, const char *argv[]){
     else if(config)
     {
         load_config(config);
-        hijack_cfg_entry_t *cfg_entry = NULL;
+        hijack_cfg_entry_t *cfg_entry = 0;
         STAILQ_FOREACH(cfg_entry, &hijack_cfg, entries)
         {
         	//char lib_path_buf[PATH_MAX];
@@ -885,9 +873,8 @@ int main(int argc, const char *argv[]){
 }
 
 static int init_extra(
-	int argc, const char *argv[],
-	char **_extra
-){
+        int argc, const char *argv[], char **_extra) 
+{
     if(optind <= 0)
         return 0;
 
@@ -896,7 +883,7 @@ static int init_extra(
     int extra_len = sizeof(EXTRA_COOKIE);
     for(i = optind; i < argc; i++)
     {
-        int argcv_len = sizeof(_argc) + sizeof(uintptr_t) * (_argc + 1);
+        int argcv_len = sizeof(_argc) + sizeof(uint32_t) * (_argc + 1);
         int l = strlen(argv[i]) + 1;
         if(extra_len + argcv_len + l > MAX_ARGCV_LEN)
             break;
@@ -905,18 +892,18 @@ static int init_extra(
         _argc++;
     }
     
-    int argcv_len = sizeof(_argc) + sizeof(uintptr_t) * _argc;
+    int argcv_len = sizeof(_argc) + sizeof(uint32_t) * _argc;
     extra_len += argcv_len;
     extra_len = (extra_len & ~3) + 4;
 
     char *extra = malloc(extra_len);
     memset(extra, 0, extra_len);
     
-    uintptr_t *extra_u32 = (uintptr_t *)extra;
+    uint32_t *extra_u32 = (uint32_t*)extra;
     extra_u32[0] = EXTRA_COOKIE;
     extra_u32[1] = _argc;
 
-    uintptr_t *_argv = &extra_u32[2];
+    uint32_t *_argv = &extra_u32[2];
     char *ppp = extra + argcv_len + sizeof(EXTRA_COOKIE);
     for(i = 0; i < _argc; i++)
     {
@@ -928,27 +915,26 @@ static int init_extra(
     *_extra = extra;
     return extra_len;
 }
-
 typedef struct
 {
-	uintptr_t dlopenaddr, dlcloseaddr, dlsymaddr, mprotectaddr;
+    uint32_t dlopenaddr, dlcloseaddr, dlsymaddr, mprotectaddr;
 } inject_info_t;
 
 static int inject_prepare(
         pid_t pid, inject_info_t *inject_info)
 {
-    uintptr_t mprotectaddr = 0;
-    uintptr_t dlopenaddr = 0;
-    uintptr_t dlcloseaddr = 0;
-    uintptr_t dlsymaddr = 0;
+    uint32_t mprotectaddr = 0;
+    uint32_t dlopenaddr = 0;
+    uint32_t dlcloseaddr = 0;
+    uint32_t dlsymaddr = 0;
 
-    if(find_name(pid, "mprotect", &mprotectaddr) < 0)
+    if(0 > find_name(pid, "mprotect", &mprotectaddr))
     {
 		printf("can't find address of mprotect(), error!\n");
 		return -1;
 	}
 	if (debug)
-		printf("mprotect: 0x%08X\n", mprotectaddr);
+		printf("mprotect: 0x%x\n", mprotectaddr);
 
 	void *ldl = dlopen("libdl.so.2", RTLD_LAZY);
     if(!ldl)
@@ -958,9 +944,9 @@ static int inject_prepare(
 	}
 
 
-    dlopenaddr  = (uintptr_t)dlsym(ldl, "dlopen");
-    dlcloseaddr = (uintptr_t)dlsym(ldl, "dlclose");
-	dlsymaddr   = (uintptr_t)dlsym(ldl, "dlsym");
+    dlopenaddr = (uint32_t)dlsym(ldl, "dlopen");
+    dlcloseaddr = (uint32_t)dlsym(ldl, "dlclose");
+	dlsymaddr = (uint32_t)dlsym(ldl, "dlsym");
 	dlclose(ldl);
 
     if(!dlopenaddr || !dlcloseaddr || !dlsymaddr)
@@ -969,71 +955,62 @@ static int inject_prepare(
         return -2;
     }
 
-	uintptr_t this_linker, their_linker;
-	if(find_linker(getpid(), &this_linker) < 0)
+	unsigned long int lkaddr;
+	unsigned long int lkaddr2;
+	if(0 > find_linker(getpid(), &lkaddr))
     {
         printf("find_linker pid: %d, error!\n", getpid());
         return -3;
     }
-	//printf("own linker: 0x%x\n", this_linker);
-	//printf("offset %x\n", dlopenaddr - this_linker);
-	if(find_linker(pid, &their_linker) < 0)
+	//printf("own linker: 0x%x\n", lkaddr);
+	//printf("offset %x\n", dlopenaddr - lkaddr);
+	if(0 > find_linker(pid, &lkaddr2))
     {
         printf("find_linker pid: %d, error!\n", pid);
         return -4;
     }
-	//printf("tgt linker: %x\n", their_linker);
-	//printf("tgt dlopen : %x\n", their_linker + (dlopenaddr - this_linker));
-	dlopenaddr = their_linker + (dlopenaddr - this_linker);
-	dlcloseaddr = their_linker + (dlcloseaddr - this_linker);
-	dlsymaddr = their_linker + (dlsymaddr - this_linker);
+	//printf("tgt linker: %x\n", lkaddr2);
+	//printf("tgt dlopen : %x\n", lkaddr2 + (dlopenaddr - lkaddr));
+	dlopenaddr = lkaddr2 + (dlopenaddr - lkaddr);
+	dlcloseaddr = lkaddr2 + (dlcloseaddr - lkaddr);
+	dlsymaddr = lkaddr2 + (dlsymaddr - lkaddr);
 	if(debug)
 	{
-    	printf("dlopen   : 0x%08X\n", dlopenaddr);
-    	printf("dlclose  : 0x%08X\n", dlcloseaddr);
-    	printf("dlsymaddr: 0x%08X\n", dlsymaddr);
+    	printf("dlopen: 0x%x\n", dlopenaddr);
+    	printf("dlclose: 0x%x\n", dlcloseaddr);
+    	printf("dlsymaddr: 0x%x\n", dlsymaddr);
 	}
 
     inject_info->mprotectaddr = mprotectaddr;
     inject_info->dlopenaddr = dlopenaddr;
     inject_info->dlcloseaddr = dlcloseaddr;
     inject_info->dlsymaddr = dlsymaddr;
+
     return 0;
 }
 
-#define ALIGN(p) (((uintptr_t)p + (sizeof(uintptr_t) - 1)) & ~(sizeof(uintptr_t)-1))
-
-static void dump_regs(struct pt_regs2 regs){
-	printf("R0: 0x%08X (arg0)\n", regs.ARM_r0);
-	printf("R1: 0x%08X (arg1)\n", regs.ARM_r1);
-	printf("R2: 0x%08X (arg2)\n", regs.ARM_r2);
-	printf("LR: 0x%08X (return address)\n", regs.ARM_lr);
-	printf("PC: 0x%08X (program counter)\n", regs.ARM_pc);
-	printf("SP: 0x%08X (stack pointer)\n", regs.ARM_sp);
-}
 
 static int inject_lib(
         pid_t pid, const char *lib_name, int resident)
 {
     inject_info_t inject_info;
-	memset(&inject_info, 0x00, sizeof(inject_info));
 
 	// Attach 
-	if (ptrace(PTRACE_ATTACH, pid, 0, 0) < 0)
+	if (0 > ptrace(PTRACE_ATTACH, pid, 0, 0))
     {
 		printf("cannot attach to %d, error!\n", pid);
 		return -2;
 	}
 	waitpid(pid, NULL, 0);
 	
-    if(inject_prepare(pid, &inject_info) < 0)
+    if(0 > inject_prepare(pid, &inject_info))
     {
         return -1;
     }
 	char buf[32];
 	sprintf(buf, "/proc/%d/mem", pid);
 	int fd = open(buf, O_WRONLY);
-	if(fd <= 0)
+	if(0 > fd) 
     {
 		printf("cannot open %s, error!\n", buf);
     	ptrace(PTRACE_DETACH, pid, 0, 0);
@@ -1044,7 +1021,8 @@ static int inject_lib(
 	struct pt_regs2 regs;
     ptrace(PTRACE_GETREGS, pid, 0, &regs);
 
-    int nalloc = ALIGN(strlen(lib_name) + 1);
+    int nalloc = strlen(lib_name) + 1;
+    nalloc = (nalloc + 3) & ~3;
 
     char *extra = 0;
     int extra_len = init_extra(_argc, _argv, &extra);
@@ -1063,86 +1041,43 @@ static int inject_lib(
 	strcpy(ctx->lib_deinit, "lib_deinit");
 	strcpy(ctx->lib_name, lib_name);
     {
-        uintptr_t p = ALIGN((uintptr_t)(ctx->lib_name + strlen(lib_name) + 1));
+        uint32_t p = (uint32_t)(ctx->lib_name + strlen(lib_name) + 1);
+        p = (p + 3) & ~3;
         memcpy((void*)p, extra, extra_len);
     }
 
     sc_reg_save_t *reg_save = sc_get_reg_save(sc);
-	#if defined(TARGET_ARM) || defined(TARGET_THUMB)
 	reg_save->R0 = regs.ARM_r0;
 	reg_save->R1 = regs.ARM_r1;
 	reg_save->R2 = regs.ARM_r2;
 	reg_save->R3 = regs.ARM_r3;
 	reg_save->R4 = regs.ARM_r4;
-	reg_save->R5 = regs.ARM_r5;
-	reg_save->R6 = regs.ARM_r6;
-	reg_save->R7 = regs.ARM_r7;
-	reg_save->R8 = regs.ARM_r8;
-	reg_save->R9 = regs.ARM_r9;
-	reg_save->R10 = regs.ARM_r10;
-	reg_save->FP = regs.ARM_fp;
-	reg_save->IP = regs.ARM_ip; //Intra Procedure call scratch Register
 	reg_save->LR = regs.ARM_lr;
 	reg_save->PC = regs.ARM_pc;
 	reg_save->SP = regs.ARM_sp;
-	#elif defined(TARGET_AMD64)
-	reg_save->RAX = regs.rax;
-	reg_save->RBX = regs.rbx;
-	reg_save->RCX = regs.rcx;
-	reg_save->RDX = regs.rdx;
-	reg_save->RDI = regs.rdi;
-	reg_save->RSI = regs.rsi;
-	reg_save->RBP = regs.rbp;
-	reg_save->RIP = regs.rip;
-	reg_save->R8 = regs.r8;
-	reg_save->R9 = regs.r9;
-	reg_save->R10 = regs.r10;
-	reg_save->R11 = regs.r11;
-	reg_save->R12 = regs.r12;
-	reg_save->R13 = regs.r13;
-	reg_save->R14 = regs.r14;
-	reg_save->R15 = regs.r15;
-	#endif
-
+			
 	if (debug) {
-		dump_regs(regs);
+		printf("pc=%x lr=%x sp=%x fp=%x\n", regs.ARM_pc, regs.ARM_lr, regs.ARM_sp, regs.ARM_fp);
+		printf("r0=%x r1=%x\n", regs.ARM_r0, regs.ARM_r1);
+		printf("r2=%x r3=%x\n", regs.ARM_r2, regs.ARM_r3);
 	}
 
 	if (debug)
-		printf("stack: 0x%08X-0x%08X, length = %d\n", stack_start, stack_end, stack_end-stack_start);
-
-#if defined(TARGET_ARM) || defined(TARGET_THUMB)		
+		printf("stack: 0x%x-0x%x length = %d\n", stack_start, stack_end, stack_end-stack_start);
+		
 	// write code to stack
-	uintptr_t codeaddr = regs.ARM_sp - sc_size;
-#elif defined(TARGET_AMD64)
-	uintptr_t codeaddr = regs.rsp - sc_size;
-#endif
-
-	if(debug){
-		printf("writing 0x%08X bytes at 0x%x\n", sc_size, codeaddr);
-	}
-
-	uint8_t *shell_code = sc_get(sc);
-
-	//-- STACK --
-	//[ARM_sp - sc_size]
-	//.....
-	//[ARM_sp]
-	if(write_mem(pid, (unsigned long*)shell_code, sc_size/sizeof(long), codeaddr) < 0) 
+	uint32_t codeaddr = regs.ARM_sp - sc_size;
+	if(0 > write_mem(pid, (unsigned long*)sc_get(sc), sc_size/sizeof(long), codeaddr)) 
     {
 		printf("cannot write code, error!\n");
     	ptrace(PTRACE_DETACH, pid, 0, 0);
 		return -4;
 	}
-
+	
 	if (debug)
 		printf("executing injection code at 0x%x\n", codeaddr);
 
-	// offset (if any) for the shellcode entry point
-	codeaddr += SC_OFFSET(_SHELL_CODE_MAIN);
-
-#if defined(TARGET_ARM) || defined(TARGET_THUMB)	
-	// reserve stack space (used for the code we just wrote) - equivalent to alloca
+	// calc stack pointer
 	regs.ARM_sp = regs.ARM_sp - sc_size;
 
 	// call mprotect() to make stack executable
@@ -1153,22 +1088,6 @@ static int inject_lib(
 	regs.ARM_r2 = PROT_READ|PROT_WRITE|PROT_EXEC; // protections
 	regs.ARM_lr = codeaddr; // points to loading and fixing code
 	regs.ARM_pc = inject_info.mprotectaddr; // execute mprotect()
-
-	if (debug) {
-		dump_regs(regs);
-	}
-
-#elif defined(TARGET_AMD64)
-	*(uintptr_t *)(&_SC_STACK + 4096 - 8) = &_SC_MAIN;
-	regs.rsp = &_SC_STACK + 4096 - 8;
-	regs.rbp = &_SC_STACK + 4096 - 8;
-	//regs.rsp = regs.rsp - sc_size;
-	//regs.rbp = regs.rsp - sc_size;
-	regs.rdi = stack_start;
-	regs.rsi = stack_end - stack_start;
-	regs.rdx = PROT_READ | PROT_WRITE | PROT_EXEC;
-	regs.rip = inject_info.mprotectaddr;
-#endif
 	
 	// detach and continue
 	ptrace(PTRACE_SETREGS, pid, 0, &regs);

@@ -16,7 +16,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "log.h"
-#include "config.h"
 
 #define dlog(fmt,...) mprintf("["LIB_NAME"] "fmt, ##__VA_ARGS__)
 #define dlogh(fmt,...) mprintf("["LIB_NAME"] %s, "fmt,__func__+2, ##__VA_ARGS__)
@@ -35,7 +34,6 @@ static void dumpbin(
         mprintf("Error saving file '%s'\n", path);
 }
 
-#if defined(TARGET_ARM) || defined(TARGET_THUMB)
 #define BX_LR 0xe12fff1e
 
 static void  __attribute__((naked)) bx_lr()
@@ -97,8 +95,6 @@ static int patch_adbg_CheckSystem(
 
 	return PATCH(h,adbg_CheckSystem,bx_lr,1);
 }
-#endif
-
 static int getArgCArgV(
         const char *libpath, char **argv)
 {
